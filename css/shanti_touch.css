@@ -1,0 +1,7 @@
+/* CSS Document */
+
+@media only screen and (max-device-width: 768px) {
+	#header-wrapper {
+		display:none;
+	}
+}

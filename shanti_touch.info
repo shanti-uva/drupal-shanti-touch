@@ -1,0 +1,5 @@
+name = "SHANTI Touch"
+description = "Add mobile gesture support to the book module, functionality specfically for SHANTI"
+core = 7.x
+package = "Book"
+dependencies[] = book

@@ -1,0 +1,206 @@
+<?php
+
+/**
+ * @see template_preprocess_book_navigation()
+ */
+
+// book touch global variables
+define('SHANTI_TOUCH_NEXT', TRUE);
+define('SHANTI_TOUCH_PREV', TRUE); 
+define('SHANTI_TOUCH_MENU', TRUE);
+define('SHANTI_TOUCH_PROG', TRUE);
+define('SHANTI_TOUCH_ACTIVE_LIB', 'quojs');
+
+/**
+ * Implements hook_init().
+ */
+function shanti_touch_init() {
+  // detect if we are in a book
+  if ($node = menu_get_object()) {
+    $current_bid = empty($node->book['bid']) ? 0 : $node->book['bid'];
+    if ($current_bid) {
+      // verify a library was found
+      $lib = shanti_touch_get_libs();
+      // verify that default was found
+      $active_lib = variable_get('shanti_touch_active_lib', SHANTI_TOUCH_ACTIVE_LIB);
+      if (isset($lib[$active_lib])) {
+        drupal_add_js($lib[$active_lib]['location']);
+      }
+	  
+      // add standard css style--in this version, it seeks to remove unnecessary design elements from the page
+      drupal_add_css(drupal_get_path('module', 'shanti_touch') . '/css/shanti_touch.css');
+      // get prev/next links
+      $prev_item = book_prev($node->book);
+      $prev_link = '';
+      if (isset($prev_item['href'])) {
+        $prev_link = url($prev_item['href']);
+      }
+      $next_item = book_next($node->book);
+      $next_link = '';
+      if (isset($next_item['href'])) {
+        $next_link = url($next_item['href']);
+      }
+	  // trying with the documentation $parent href thing
+	  $menu_item = url($parent['href']);
+	  $menu_link = '';
+	  if (isset($menu_item['href'])) {
+		$menu_link = url($menu_item['href']);  
+	  }
+	  // work in progress
+	  $prog_item = menu_link_load($node->book['plid']);
+	  $prog_link = '';
+	  if (isset($prog_item['href'])) {
+		$prog_link = url($prog_item['href']);  
+	  }
+      // add settings to scope of js
+        $settings = array(
+        'shanti_touch' => array( 
+          'next' => variable_get('shanti_touch_next', SHANTI_TOUCH_NEXT),
+          'prev' => variable_get('shanti_touch_prev', SHANTI_TOUCH_PREV),
+		  'menu' => variable_get('shanti_touch_menu', SHANTI_TOUCH_MENU),
+		  'prog' => variable_get('shanti_touch_prog', SHANTI_TOUCH_PROG),
+          'active_lib' => variable_get('shanti_touch_active_lib', SHANTI_TOUCH_ACTIVE_LIB),
+          'prev_link' => $prev_link,
+          'next_link' => $next_link,
+		  'menu_link' => $menu_link,
+		  'prog_link' => $prog_link,
+        )
+      );
+      drupal_add_js($settings, 'setting');
+    }
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function shanti_touch_menu() {
+  $items = array();
+  $items['admin/config/user-interface/shanti-touch'] = array(
+    'title' => 'SHANTI Touch',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('shanti_touch_form'),
+    'access arguments' => array('administer site configuration'),
+  );
+  return $items;
+}
+
+/**
+ * Page callback for shanti_touch.
+ */
+function shanti_touch_form($form, $form_state) {
+  $form = array();
+  $libraries = shanti_touch_get_libs();
+  $lib_options = array();
+  foreach ($libraries as $key => $lib) {
+    $lib_options[$key] = $lib['name'];
+  }
+  $form['shanti_touch_active_lib'] = array(
+    '#default_value' => variable_get('shanti_touch_active_lib', SHANTI_TOUCH_ACTIVE_LIB),
+    '#description' => t('Choose the library for use (you should probably leave this as Quo.js)'),
+    '#weight' => 0,
+    '#type' => 'select',
+    '#options' => $lib_options,
+    '#title' => t('Active library'),
+  );
+  $form['shanti_touch_next'] = array(
+    '#default_value' => variable_get('shanti_touch_next', SHANTI_TOUCH_NEXT),
+    '#description' => t('Enable to allow swiping swiping to the next page in the book'),
+    '#weight' => 0,
+    '#type' => 'checkbox',
+    '#title' => t('Next page'),
+  );
+  $form['shanti_touch_prev'] = array(
+    '#default_value' => variable_get('shanti_touch_prev', SHANTI_TOUCH_PREV),
+    '#description' => t('Enable to allow swiping to the previous page in the book'),
+    '#weight' => 0,
+    '#type' => 'checkbox',
+    '#title' => t('Previous page'),
+  );
+  $form['shanti_touch_menu'] = array(
+    '#default_value' => variable_get('shanti_touch_menu', SHANTI_TOUCH_MENU),
+    '#description' => t('Pinch out to get to the home page'),
+    '#weight' => 0,
+    '#type' => 'checkbox',
+    '#title' => t('Home page'),
+  );
+  $form['shanti_touch_prog'] = array(
+    '#default_value' => variable_get('shanti_touch_prog', SHANTI_TOUCH_PROG),
+    '#description' => t('Pinch in to get to the parent table of contents'),
+    '#weight' => 0,
+    '#type' => 'checkbox',
+    '#title' => t('Book table of contents'),
+  );
+  return system_settings_form($form);
+}
+
+/**
+ * Helper function to return a touch capable library.
+ */
+function shanti_touch_get_libs() {
+  $libraries = module_invoke_all('shanti_touch_lib');
+  drupal_alter('shanti_touch_lib', $libraries);
+  return $libraries;
+}
+
+/**
+ * Implements hook_shanti_touch_lib().
+ */
+function shanti_touch_shanti_touch_lib() {
+  $touch_libs = array();
+  // account for quojs being installed
+  if (module_exists('quojs')) {
+    $touch_libs['quojs'] = array(
+      'name' => 'Quo.js',
+      'location' => drupal_get_path('module', 'shanti_touch') .'/shanti_touch_libs/shanti_touch_quo.js',
+    );
+  }
+  return $touch_libs;
+}
+
+/**
+ * Implements hook_variable_info().
+ */
+function shanti_touch_variable_info($options) {
+  $variables = array();
+  $variables['shanti_touch_next'] = array(
+    'name' => 'shanti_touch_next',
+    'title' => 'Next touch zone',
+    'type' => 'checkbox',
+    'default' => SHANTI_TOUCH_NEXT,
+    'group' => 'shanti_touch',
+    'module' => 'shanti_touch',
+  );
+  $variables['shanti_touch_prev'] = array(
+    'name' => 'shanti_touch_prev',
+    'title' => 'Previous touch zone',
+    'type' => 'checkbox',
+    'default' => SHANTI_TOUCH_PREV,
+    'group' => 'shanti_touch',
+    'module' => 'shanti_touch',
+  );
+  $variables['shanti_touch_menu'] = array(
+    'name' => 'shanti_touch_menu',
+    'title' => 'Menu touch zone',
+    'type' => 'checkbox',
+    'default' => SHANTI_TOUCH_MENU,
+    'group' => 'shanti_touch',
+    'module' => 'shanti_touch',
+  );
+  return $variables;
+}
+
+/**
+ * Implements hook_variable_group_info().
+ */
+function shanti_touch_variable_group_info() {
+  $groups = array();
+  $groups['shanti_touch'] = array(
+    'title' => 'SHANTI Touch',
+    'description' => 'This project provides an way of implementing touch libraries for use with navigating books.  This version has been specifically designed for SHANTI.',
+    'path' => 'admin/config/user-interface/shanti-touch',
+    'access' => 'administer site configuration',
+  );
+  return $groups;
+}
